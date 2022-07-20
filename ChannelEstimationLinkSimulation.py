@@ -16,7 +16,7 @@ from sionna.channel import ApplyOFDMChannel
 from Simulation_Parameters import Simulation_Parameter
 from parameter_configuration import get_default_resource_grid
 from channel_data.read_channel_data import read_channel_data
-
+from LeastSquareEqualizer import LeastSquareEqualizer
 
 
 class ChannelEstimationLinkSimulation:
@@ -57,6 +57,7 @@ class ChannelEstimationLinkSimulation:
     def __initialize_receiver(self):
         self.ls_estimator = LSChannelEstimator(self.resource_grid, interpolation_type="nn")
         self.lmmse_equalizer = LMMSEEqualizer(self.resource_grid, self.stream_management)
+        self.ls_equalizer = LeastSquareEqualizer(self.resource_grid, self.stream_management)
         self.demapper = Demapper("app", "qam", self.num_bits_per_symbol)
         self.deinterleaver = Deinterleaver(self.interleaver)
         self.ldpc_decoder = LDPC5GDecoder(self.ldpc_encoder, hard_out=True)
@@ -116,7 +117,8 @@ class ChannelEstimationLinkSimulation:
         channel_estimation, error_variance = self.ls_estimator([rx_symbols, no])
         channel_estimation_matrix = tf.cast(channel_estimation_matrix, "complex64")
         equalized_symbols, no_eff = self.lmmse_equalizer([rx_symbols, channel_estimation_matrix, error_variance, no])
-        llr = self.demapper([equalized_symbols, no_eff])
+        equalized_symbols, no_eff_ls = self.ls_equalizer([rx_symbols, channel_estimation_matrix, no])
+        llr = self.demapper([equalized_symbols, no_eff_ls])
         llr_deintlv = self.deinterleaver(llr)
         decoded_bits = self.ldpc_decoder(llr_deintlv)
         return decoded_bits
